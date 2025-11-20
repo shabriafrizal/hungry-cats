@@ -56,5 +56,5 @@
         "temp/": true,
         "Temp/": true
     },
-    "dotnet.defaultSolution": "gimersia.sln"
+    "dotnet.defaultSolution": "hungry-cats.sln"
 }

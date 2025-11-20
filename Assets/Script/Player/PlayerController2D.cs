@@ -10,38 +10,42 @@ public class PlayerController2D : MonoBehaviour
     /// <summary>Args: (fallDistanceInUnits, minYVelocityDuringAir)</summary>
     public System.Action<float, float> OnLanded;
 
-    // ===== MOVEMENT & JUMPING =====
+    // ===== INSPECTOR FIELDS =====
 
     [Header("Move")]
     [Tooltip("Max horizontal speed.")]
-    public float moveSpeed = 8f;
+    [SerializeField] private float moveSpeed = 8f;
     [Tooltip("How fast we reach target speed.")]
-    public float acceleration = 60f;
+    [SerializeField] private float acceleration = 60f;
     [Tooltip("How fast we slow down when no input.")]
-    public float deceleration = 70f;
+    [SerializeField] private float deceleration = 70f;
     [Tooltip("Extra deceleration while in air (to reduce floaty drift).")]
-    public float airDecelMultiplier = 0.5f;
+    [SerializeField] private float airDecelMultiplier = 0.5f;
 
     [Header("Jump")]
     [Tooltip("Initial jump velocity applied once.")]
-    public float jumpVelocity = 6f;
+    [SerializeField] private float jumpVelocity = 6f;
     [Tooltip("Extra gravity while falling for snappier feel.")]
-    public float fallGravityMultiplier = 2.2f;
+    [SerializeField] private float fallGravityMultiplier = 2.2f;
 
     [Header("Leniency")]
     [Tooltip("Time after leaving ground where jump is still allowed.")]
-    public float coyoteTime = 0.12f;
+    [SerializeField] private float coyoteTime = 0.12f;
     [Tooltip("Time before landing where a queued jump still triggers.")]
-    public float jumpBufferTime = 0.12f;
+    [SerializeField] private float jumpBufferTime = 0.12f;
 
     [Header("Ground Check")]
-    public Transform groundCheck;          // place an empty at feet
-    public Vector2 groundCheckSize = new Vector2(0.6f, 0.1f);
-    public LayerMask groundMask = ~0;
+    [SerializeField] private Transform groundCheck;          // place an empty at feet
+    [SerializeField] private Vector2 groundCheckSize = new Vector2(0.6f, 0.1f);
+    [SerializeField] private LayerMask groundMask = ~0;
+
+    [Header("Grounded Hold")]
+    [Tooltip("Berapa lama status grounded stabil dipertahankan setelah lepas dari ground (anti jitter untuk FX).")]
+    [SerializeField] private float groundedHoldDuration = 1f;
 
     [Header("Extras")]
     [Tooltip("Optional: allow a single mid-air jump.")]
-    public bool allowDoubleJump = false;
+    [SerializeField] private bool allowDoubleJump = false;
 
     // =========================
     //        SCALE SYSTEM
@@ -53,8 +57,6 @@ public class PlayerController2D : MonoBehaviour
     {
         public PlayerSize size;
         public Vector2 scaleMultiplier;
-        public Vector2 boxSizeMultiplier;
-        public Vector2 groundCheckSizeMultiplier;
 
         [Header("Movement/Jump Multipliers (relative to ORIGINALS)")]
         public float moveSpeedMultiplier;
@@ -65,12 +67,11 @@ public class PlayerController2D : MonoBehaviour
     }
 
     [Header("Scale Presets (Multipliers from ORIGINAL)")]
-    public SizePreset smallPreset = new SizePreset
+    [SerializeField]
+    private SizePreset smallPreset = new SizePreset
     {
         size = PlayerSize.Small,
         scaleMultiplier = new Vector2(0.5f, 0.5f),
-        boxSizeMultiplier = new Vector2(0.85f, 0.75f),
-        groundCheckSizeMultiplier = new Vector2(0.6f, 1f),
 
         moveSpeedMultiplier = 1.15f,
         accelerationMultiplier = 1.1f,
@@ -79,12 +80,11 @@ public class PlayerController2D : MonoBehaviour
         fallGravityMultiplierMultiplier = 1.05f
     };
 
-    public SizePreset normalPreset = new SizePreset
+    [SerializeField]
+    private SizePreset normalPreset = new SizePreset
     {
         size = PlayerSize.Normal,
         scaleMultiplier = new Vector2(1f, 1f),
-        boxSizeMultiplier = new Vector2(1f, 1f),
-        groundCheckSizeMultiplier = new Vector2(1f, 1f),
 
         moveSpeedMultiplier = 1f,
         accelerationMultiplier = 1f,
@@ -93,12 +93,11 @@ public class PlayerController2D : MonoBehaviour
         fallGravityMultiplierMultiplier = 1f
     };
 
-    public SizePreset bigPreset = new SizePreset
+    [SerializeField]
+    private SizePreset bigPreset = new SizePreset
     {
         size = PlayerSize.Big,
         scaleMultiplier = new Vector2(1.5f, 1.5f),
-        boxSizeMultiplier = new Vector2(1.25f, 1.15f),
-        groundCheckSizeMultiplier = new Vector2(1.5f, 1f),
 
         moveSpeedMultiplier = 0.85f,
         accelerationMultiplier = 0.9f,
@@ -107,72 +106,83 @@ public class PlayerController2D : MonoBehaviour
         fallGravityMultiplierMultiplier = 0.95f
     };
 
+    // ===== RUNTIME FIELDS =====
     // Cached components / baselines
-    Rigidbody2D _rb;
-    BoxCollider2D _box;          // optional
-    Vector2 _originalScale2D;    // from transform.localScale at Awake
-    Vector2 _originalBoxSize;    // from BoxCollider2D.size at Awake (if any)
-    Vector2 _originalGCSize;     // from groundCheckSize at Awake
+    private Rigidbody2D rb;
+    private BoxCollider2D box;          // optional
+    private Vector2 originalScale2D;    // from transform.localScale at Awake
+    private Vector2 originalBoxSize;    // from BoxCollider2D.size at Awake (if any)
+    private Vector2 originalGCSize;     // from groundCheckSize at Awake
 
-    float _originalMoveSpeed;
-    float _originalAcceleration;
-    float _originalDeceleration;
-    float _originalJumpVelocity;
-    float _originalFallGravityMultiplier;
+    private float originalMoveSpeed;
+    private float originalAcceleration;
+    private float originalDeceleration;
+    private float originalJumpVelocity;
+    private float originalFallGravityMultiplier;
 
     // Move/jump state
-    float _inputX;
-    float _coyoteCounter;
-    float _bufferCounter;
-    bool _hasUsedDoubleJump;
+    private float inputX;
+    private float coyoteCounter;
+    private float bufferCounter;
+    private bool hasUsedDoubleJump;
+    private bool jumpPressedThisFrame;
+
+    // Ground state
+    private bool rawGrounded;          // hasil OverlapBox langsung (bisa jitter)
+    private bool stableGrounded;       // versi stabil (di-hold)
+    private float groundedHoldTimer;
+    private bool wasGroundedRaw;
+    private bool wasGroundedStable;
 
     // Landing detect state
-    bool _wasGrounded;
-    float _airStartY;
-    float _minYVelWhileAir;
+    private float airStartY;
+    private float minYVelWhileAir;
 
     // ===== Animation & Facing =====
     [Header("Animation")]
     [Tooltip("Animator with bools: isWalking, isJumping, isLanding")]
-    public Animator animator;
+    [SerializeField] private Animator animator;
     [Tooltip("SpriteRenderer to flip by direction. Defaults to self or child.")]
-    public SpriteRenderer spriteRenderer;
+    [SerializeField] private SpriteRenderer spriteRenderer;
     [Tooltip("Speed threshold to count as walking.")]
-    public float walkSpeedThreshold = 0.1f;
+    [SerializeField] private float walkSpeedThreshold = 0.1f;
 
     [Tooltip("Deadzone for reading left/right input when deciding facing.")]
-    public float inputFaceThreshold = 0.2f;
+    [SerializeField] private float inputFaceThreshold = 0.2f;
     [Tooltip("Deadzone for reading velocity when airborne to decide facing.")]
-    public float velFaceThreshold = 0.3f;
+    [SerializeField] private float velFaceThreshold = 0.3f;
 
     [Header("Eat")]
-    public bool alreadyAte = false;
+    [SerializeField] private bool alreadyAte = false;
 
     // Animator parameter IDs
-    static readonly int ID_isWalking = Animator.StringToHash("isWalking");
-    static readonly int ID_isJumping = Animator.StringToHash("isJumping");
-    static readonly int ID_isLanding = Animator.StringToHash("isLanding");
+    private static readonly int ID_isWalking = Animator.StringToHash("isWalking");
+    private static readonly int ID_isJumping = Animator.StringToHash("isJumping");
+    private static readonly int ID_isLanding = Animator.StringToHash("isLanding");
 
-    int _lastFacingDir = 1; // +1 = right, -1 = left
-    bool _forceJumpBool;    // set true when DoJump(); cleared when grounded
+    private int lastFacingDir = 1; // +1 = right, -1 = left
+    private bool forceJumpBool;    // set true when DoJump(); cleared when grounded
 
-    void Awake()
+    // ===== UNITY LIFECYCLE =====
+    private void Awake()
     {
-        _rb = GetComponent<Rigidbody2D>();
-        _box = GetComponent<BoxCollider2D>();
+        rb = GetComponent<Rigidbody2D>();
+        box = GetComponent<BoxCollider2D>();
 
-        if (_rb.interpolation == RigidbodyInterpolation2D.None) _rb.interpolation = RigidbodyInterpolation2D.Interpolate;
-        if (_rb.collisionDetectionMode != CollisionDetectionMode2D.Continuous) _rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
+        if (rb.interpolation == RigidbodyInterpolation2D.None)
+            rb.interpolation = RigidbodyInterpolation2D.Interpolate;
+        if (rb.collisionDetectionMode != CollisionDetectionMode2D.Continuous)
+            rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
 
-        _originalScale2D = new Vector2(transform.localScale.x, transform.localScale.y);
-        if (_box) _originalBoxSize = _box.size;
-        _originalGCSize = groundCheckSize;
+        originalScale2D = new Vector2(transform.localScale.x, transform.localScale.y);
+        if (box) originalBoxSize = box.size;
+        originalGCSize = groundCheckSize;
 
-        _originalMoveSpeed = moveSpeed;
-        _originalAcceleration = acceleration;
-        _originalDeceleration = deceleration;
-        _originalJumpVelocity = jumpVelocity;
-        _originalFallGravityMultiplier = fallGravityMultiplier;
+        originalMoveSpeed = moveSpeed;
+        originalAcceleration = acceleration;
+        originalDeceleration = deceleration;
+        originalJumpVelocity = jumpVelocity;
+        originalFallGravityMultiplier = fallGravityMultiplier;
 
         if (!groundCheck)
         {
@@ -186,209 +196,65 @@ public class PlayerController2D : MonoBehaviour
         if (!spriteRenderer) spriteRenderer = GetComponentInChildren<SpriteRenderer>(true);
         if (!animator) animator = GetComponentInChildren<Animator>(true);
 
+        // initial grounded state
+        rawGrounded = CheckGrounded();
+        stableGrounded = rawGrounded;
+        groundedHoldTimer = groundedHoldDuration;
+        wasGroundedRaw = rawGrounded;
+        wasGroundedStable = stableGrounded;
+
         // Hook events to drive animator flags
         OnJumped += HandleOnJumped;
         OnLanded += HandleOnLanded;
     }
 
-    void Update()
+    private void Update()
     {
-        // ----- INPUT -----
-        _inputX = Input.GetAxisRaw("Horizontal");   // -1..1 using A/D or Left/Right
-        bool jumpDown = Input.GetKeyDown(KeyCode.W); // Jump is W (example)
-
-        if (jumpDown) _bufferCounter = jumpBufferTime;
-        else _bufferCounter -= Time.unscaledDeltaTime;
-
-        bool grounded = IsGrounded();
-
-        // Track coyote time
-        if (grounded)
-        {
-            _coyoteCounter = coyoteTime;
-            _hasUsedDoubleJump = false; // reset when touching ground
-        }
-        else
-        {
-            _coyoteCounter -= Time.unscaledDeltaTime;
-        }
-
-        // Air state bookkeeping for landing event
-        if (!grounded)
-        {
-            if (_wasGrounded) // just left ground
-            {
-                _airStartY = transform.position.y;
-                _minYVelWhileAir = 0f; // becomes negative (downwards)
-            }
-            if (_rb.velocity.y < _minYVelWhileAir) _minYVelWhileAir = _rb.velocity.y;
-        }
-
-        // Handle jump press (buffer + coyote)
-        if (_bufferCounter > 0f)
-        {
-            if (_coyoteCounter > 0f)
-            {
-                DoJump();
-                _bufferCounter = 0f;
-            }
-            else if (allowDoubleJump && !_hasUsedDoubleJump)
-            {
-                DoJump();
-                _hasUsedDoubleJump = true;
-                _bufferCounter = 0f;
-            }
-        }
-
-        // Landing event: transition air -> ground
-        if (grounded && !_wasGrounded)
-        {
-            float fallDistance = _airStartY - transform.position.y; // positive if fell
-            OnLanded?.Invoke(fallDistance, _minYVelWhileAir);
-        }
-        _wasGrounded = grounded;
-
-        // ===== Flip sprite with deadzones + memory =====
-        if (spriteRenderer)
-        {
-            float dir = 0f;
-
-            if (grounded)
-            {
-                // on ground: prefer input, only update if clear enough
-                if (Mathf.Abs(_inputX) >= inputFaceThreshold)
-                    dir = Mathf.Sign(_inputX);
-            }
-            else
-            {
-                // in air: prefer actual motion, only if moving clear enough
-                if (Mathf.Abs(_rb.velocity.x) >= velFaceThreshold)
-                    dir = Mathf.Sign(_rb.velocity.x);
-                else if (Mathf.Abs(_inputX) >= inputFaceThreshold)
-                    dir = Mathf.Sign(_inputX); // intention fallback
-            }
-
-            if (dir != 0f) _lastFacingDir = (int)dir;
-            spriteRenderer.flipX = (_lastFacingDir < 0);
-        }
-
-        // ===== Drive animator booleans =====
-        if (animator)
-        {
-            bool isWalking = grounded &&
-                             Mathf.Abs(_rb.velocity.x) > walkSpeedThreshold &&
-                             Mathf.Abs(_inputX) > 0.01f;
-
-            // Jumping while rising OR right after we pressed jump
-            bool isJumping = !grounded && (_forceJumpBool || _rb.velocity.y > 0.01f);
-
-            // 'Landing' means falling/downward while airborne
-            bool isLanding = !grounded && _rb.velocity.y < -0.01f;
-
-            animator.SetBool(ID_isWalking, isWalking);
-            animator.SetBool(ID_isJumping, isJumping);
-            animator.SetBool(ID_isLanding, isLanding);
-
-            if (grounded)
-            {
-                _forceJumpBool = false;
-                if (animator.GetBool(ID_isJumping)) animator.SetBool(ID_isJumping, false);
-                if (animator.GetBool(ID_isLanding)) animator.SetBool(ID_isLanding, false);
-            }
-        }
+        ReadInput();
+        UpdateGroundState();        // hitung raw + grounded stabil (hold)
+        HandleJumpBuffer();
+        HandleCoyoteTime();         // pakai rawGrounded
+        HandleJumpLogic();
+        UpdateAirState();           // pakai rawGrounded
+        HandleLandingEvent();       // pakai stableGrounded
+        UpdateFacingDirection();    // pakai rawGrounded
+        UpdateAnimatorStates();     // pakai rawGrounded
     }
 
-    void FixedUpdate()
+    private void FixedUpdate()
     {
-        // ----- HORIZONTAL MOVE -----
-        float targetSpeed = _inputX * moveSpeed;
-        float speedDiff = targetSpeed - _rb.velocity.x;
-
-        float accelRate = (Mathf.Abs(targetSpeed) > 0.01f)
-            ? acceleration
-            : deceleration * (IsGrounded() ? 1f : airDecelMultiplier);
-
-        float movement = Mathf.Clamp(speedDiff * accelRate, -999f, 999f) * Time.fixedDeltaTime;
-        _rb.velocity = new Vector2(_rb.velocity.x + movement, _rb.velocity.y);
-
-        // ----- BETTER GRAVITY -----
-        if (_rb.velocity.y < -0.01f) // falling
-        {
-            _rb.velocity += Vector2.up * (Physics2D.gravity.y * (fallGravityMultiplier - 1f) * Time.fixedDeltaTime);
-        }
+        HandleHorizontalMovement();
+        ApplyBetterGravity();
     }
 
-    void DoJump()
-    {
-        Vector2 v = _rb.velocity;
-        v.y = jumpVelocity;
-        _rb.velocity = v;
+    // ===== PUBLIC API / HELPERS =====
+    /// <summary>
+    /// Grounded versi stabil (dipakai FX / script lain).
+    /// </summary>
+    public bool IsGroundedPublic() => stableGrounded;
 
-        _coyoteCounter = 0f;
-        _forceJumpBool = true;
-        OnJumped?.Invoke();
-    }
-
-    bool IsGrounded()
-    {
-        if (groundCheck == null)
-            return Physics2D.OverlapBox(transform.position + Vector3.down * 0.1f, groundCheckSize, 0f, groundMask);
-        else
-            return Physics2D.OverlapBox(groundCheck.position, groundCheckSize, 0f, groundMask);
-    }
-
-    void OnDrawGizmosSelected()
-    {
-        Gizmos.color = new Color(0.2f, 1f, 0.2f, 0.35f);
-        Vector3 pos = groundCheck ? groundCheck.position : transform.position + Vector3.down * 0.1f;
-        Gizmos.DrawCube(pos, groundCheckSize);
-    }
-
-    // ===== Public helpers =====
-    public bool IsGroundedPublic() => IsGrounded();
-
-    // -------------------------
-    // CLEAN SCALE API
-    // -------------------------
-    [System.Serializable] public struct _SizePresetMarker { }
+    [System.Serializable]
+    private struct SizePresetMarker { }
 
     public void ApplySize(SizePreset preset)
     {
         // 1) Transform scale
         Vector3 finalScale = new Vector3(
-            _originalScale2D.x * preset.scaleMultiplier.x,
-            _originalScale2D.y * preset.scaleMultiplier.y,
+            originalScale2D.x * preset.scaleMultiplier.x,
+            originalScale2D.y * preset.scaleMultiplier.y,
             transform.localScale.z
         );
         transform.localScale = finalScale;
 
-        // 2) BoxCollider2D (if present)
-        if (_box)
-        {
-            _box.size = new Vector2(
-                _originalBoxSize.x * preset.boxSizeMultiplier.x,
-                _originalBoxSize.y * preset.boxSizeMultiplier.y
-            );
-        }
-
-        // 3) Ground check region
-        groundCheckSize = new Vector2(
-            _originalGCSize.x * preset.groundCheckSizeMultiplier.x,
-            _originalGCSize.y * preset.groundCheckSizeMultiplier.y
-        );
-
-        // 4) Parameter adjustments (movement/jump)
-        moveSpeed = _originalMoveSpeed * Mathf.Max(0.01f, preset.moveSpeedMultiplier);
-        acceleration = _originalAcceleration * Mathf.Max(0.01f, preset.accelerationMultiplier);
-        deceleration = _originalDeceleration * Mathf.Max(0.01f, preset.decelerationMultiplier);
-        jumpVelocity = _originalJumpVelocity * Mathf.Max(0.01f, preset.jumpVelocityMultiplier);
-        fallGravityMultiplier = _originalFallGravityMultiplier * Mathf.Max(0.01f, preset.fallGravityMultiplierMultiplier);
+        // 2) Parameter adjustments (movement/jump)
+        moveSpeed = originalMoveSpeed * Mathf.Max(0.01f, preset.moveSpeedMultiplier);
+        acceleration = originalAcceleration * Mathf.Max(0.01f, preset.accelerationMultiplier);
+        deceleration = originalDeceleration * Mathf.Max(0.01f, preset.decelerationMultiplier);
+        jumpVelocity = originalJumpVelocity * Mathf.Max(0.01f, preset.jumpVelocityMultiplier);
+        fallGravityMultiplier = originalFallGravityMultiplier * Mathf.Max(0.01f, preset.fallGravityMultiplierMultiplier);
     }
 
-    public bool CanPlayerEat()
-    {
-        return !alreadyAte;
-    }
+    public bool CanPlayerEat() => !alreadyAte;
 
     public void ApplyScaleMultiplier(Vector2 scaleMultiplier)
     {
@@ -396,8 +262,6 @@ public class PlayerController2D : MonoBehaviour
         {
             size = PlayerSize.Normal,
             scaleMultiplier = scaleMultiplier,
-            boxSizeMultiplier = scaleMultiplier,
-            groundCheckSizeMultiplier = new Vector2(scaleMultiplier.x, 1f),
 
             moveSpeedMultiplier = 1f,
             accelerationMultiplier = 1f,
@@ -416,13 +280,241 @@ public class PlayerController2D : MonoBehaviour
     public void SetPlayerToNormal(FoodSystems _) => SetPlayerToNormal();
     public void SetPlayerToBig(FoodSystems _) => SetPlayerToBig();
 
-    // ===== Animator event handlers =====
-    void HandleOnJumped()
+    public Transform GroundCheck => groundCheck;
+    public float MoveSpeed => moveSpeed;
+    public bool AlreadyAte => alreadyAte;
+    public void SetAlreadyAte(bool value) => alreadyAte = value;
+
+    // ===== PRIVATE LOGIC =====
+
+    private void ReadInput()
+    {
+        inputX = Input.GetAxisRaw("Horizontal");   // -1..1 using A/D or Left/Right
+        // Ganti sesuai mappingmu, sementara contoh pakai W
+        jumpPressedThisFrame = Input.GetKeyDown(KeyCode.W);
+    }
+
+    private void UpdateGroundState()
+    {
+        // Hitung raw grounded via OverlapBox (bisa jitter)
+        rawGrounded = CheckGrounded();
+
+        // Update grounded stabil dengan hold timer (hanya utk FX/landing)
+        if (rawGrounded)
+        {
+            stableGrounded = true;
+            groundedHoldTimer = groundedHoldDuration;
+        }
+        else
+        {
+            if (stableGrounded)
+            {
+                groundedHoldTimer -= Time.unscaledDeltaTime;
+                if (groundedHoldTimer <= 0f)
+                {
+                    stableGrounded = false;
+                }
+            }
+        }
+    }
+
+    private void HandleJumpBuffer()
+    {
+        if (jumpPressedThisFrame)
+        {
+            bufferCounter = jumpBufferTime;
+        }
+        else
+        {
+            bufferCounter -= Time.unscaledDeltaTime;
+        }
+    }
+
+    private void HandleCoyoteTime()
+    {
+        // Untuk coyote dan reset double jump, pakai rawGrounded
+        if (rawGrounded)
+        {
+            coyoteCounter = coyoteTime;
+            hasUsedDoubleJump = false;
+        }
+        else
+        {
+            coyoteCounter -= Time.unscaledDeltaTime;
+        }
+    }
+
+    private void HandleJumpLogic()
+    {
+        if (bufferCounter <= 0f)
+            return;
+
+        if (coyoteCounter > 0f)
+        {
+            DoJump();
+            bufferCounter = 0f;
+        }
+        else if (allowDoubleJump && !hasUsedDoubleJump)
+        {
+            DoJump();
+            hasUsedDoubleJump = true;
+            bufferCounter = 0f;
+        }
+    }
+
+    private void UpdateAirState()
+    {
+        // Air-state untuk hitung jarak jatuh pakai rawGrounded
+        if (!rawGrounded)
+        {
+            if (wasGroundedRaw) // baru saja lepas dari ground
+            {
+                airStartY = transform.position.y;
+                minYVelWhileAir = 0f; // nanti jadi negatif
+            }
+
+            if (rb.velocity.y < minYVelWhileAir)
+                minYVelWhileAir = rb.velocity.y;
+        }
+    }
+
+    private void HandleLandingEvent()
+    {
+        // Event landing pakai grounded stabil (supaya tidak jitter)
+        if (stableGrounded && !wasGroundedStable)
+        {
+            float fallDistance = airStartY - transform.position.y; // positive if fell
+            OnLanded?.Invoke(fallDistance, minYVelWhileAir);
+        }
+
+        // Simpan state sebelumnya untuk frame berikutnya
+        wasGroundedRaw = rawGrounded;
+        wasGroundedStable = stableGrounded;
+    }
+
+    private void UpdateFacingDirection()
+    {
+        if (!spriteRenderer)
+            return;
+
+        float dir = 0f;
+
+        if (rawGrounded)
+        {
+            // on ground: prefer input, only update if clear enough
+            if (Mathf.Abs(inputX) >= inputFaceThreshold)
+                dir = Mathf.Sign(inputX);
+        }
+        else
+        {
+            // in air: prefer actual motion, only if moving clear enough
+            if (Mathf.Abs(rb.velocity.x) >= velFaceThreshold)
+                dir = Mathf.Sign(rb.velocity.x);
+            else if (Mathf.Abs(inputX) >= inputFaceThreshold)
+                dir = Mathf.Sign(inputX); // intention fallback
+        }
+
+        if (dir != 0f) lastFacingDir = (int)dir;
+        spriteRenderer.flipX = (lastFacingDir < 0);
+    }
+
+    private void UpdateAnimatorStates()
+    {
+        if (!animator)
+            return;
+
+        // Anim pakai rawGrounded supaya responsif
+        bool isWalkingAnim = rawGrounded &&
+                             Mathf.Abs(rb.velocity.x) > walkSpeedThreshold &&
+                             Mathf.Abs(inputX) > 0.01f;
+
+        bool isJumpingAnim = !rawGrounded && (forceJumpBool || rb.velocity.y > 0.01f);
+        bool isLandingAnim = !rawGrounded && rb.velocity.y < -0.01f;
+
+        animator.SetBool(ID_isWalking, isWalkingAnim);
+        animator.SetBool(ID_isJumping, isJumpingAnim);
+        animator.SetBool(ID_isLanding, isLandingAnim);
+
+        // Begitu benar-benar menyentuh ground lagi (raw), reset state
+        if (rawGrounded)
+        {
+            forceJumpBool = false;
+            animator.SetBool(ID_isLanding, false);
+            // isJumpingAnim juga akan otomatis false karena rawGrounded == true
+        }
+    }
+
+    private void HandleHorizontalMovement()
+    {
+        float targetSpeed = inputX * moveSpeed;
+        float speedDiff = targetSpeed - rb.velocity.x;
+
+        float accelRate = (Mathf.Abs(targetSpeed) > 0.01f)
+            ? acceleration
+            : deceleration * (rawGrounded ? 1f : airDecelMultiplier);
+
+        float movement = Mathf.Clamp(speedDiff * accelRate, -999f, 999f) * Time.fixedDeltaTime;
+        rb.velocity = new Vector2(rb.velocity.x + movement, rb.velocity.y);
+    }
+
+    private void ApplyBetterGravity()
+    {
+        if (rb.velocity.y < -0.01f) // falling
+        {
+            rb.velocity += Vector2.up * (Physics2D.gravity.y * (fallGravityMultiplier - 1f) * Time.fixedDeltaTime);
+        }
+    }
+
+    private void DoJump()
+    {
+        Vector2 v = rb.velocity;
+        v.y = jumpVelocity;
+        rb.velocity = v;
+
+        coyoteCounter = 0f;
+        forceJumpBool = true;
+
+        // Loncat = langsung dianggap tidak grounded (dua-duanya)
+        rawGrounded = false;
+        stableGrounded = false;
+        groundedHoldTimer = 0f;
+
+        OnJumped?.Invoke();
+    }
+
+    private bool CheckGrounded()
+    {
+        if (groundCheck == null)
+        {
+            return Physics2D.OverlapBox(
+                transform.position + Vector3.down * 0.1f,
+                groundCheckSize,
+                0f,
+                groundMask
+            );
+        }
+        else
+        {
+            var hit = Physics2D.OverlapBox(groundCheck.position, groundCheckSize, 0f, groundMask);
+            return hit != null;
+        }
+    }
+
+    // ===== GIZMOS =====
+    private void OnDrawGizmosSelected()
+    {
+        Gizmos.color = new Color(0.2f, 1f, 0.2f, 0.35f);
+        Vector3 pos = groundCheck ? groundCheck.position : transform.position + Vector3.down * 0.1f;
+        Gizmos.DrawCube(pos, groundCheckSize);
+    }
+
+    // ===== CALLBACKS / EVENT HANDLERS =====
+    private void HandleOnJumped()
     {
         if (animator) animator.SetBool(ID_isJumping, true);
     }
 
-    void HandleOnLanded(float fallDistance, float minYVel)
+    private void HandleOnLanded(float fallDistance, float minYVel)
     {
         if (animator)
         {

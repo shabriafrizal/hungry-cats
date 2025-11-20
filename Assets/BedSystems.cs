@@ -72,7 +72,7 @@ public class BedSystems : MonoBehaviour
         // - If we have a LevelManager: require GetFishEaten >= fishToWin
         // - And this specific player's alreadyAte must be true
         bool lmOK = (levelManager == null) || (levelManager.GetFishEaten() >= levelManager.fishToWin);
-        bool playerOK = _currentPlayer && _currentPlayer.alreadyAte;
+        bool playerOK = _currentPlayer && _currentPlayer.AlreadyAte;
         bool canSleepNow = lmOK && playerOK;
 
         // Live toggle hint based on current eligibility
@@ -147,7 +147,7 @@ public class BedSystems : MonoBehaviour
         if (showOnEnter && !_slept)
         {
             bool lmOK = (levelManager == null) || (levelManager.GetFishEaten() >= levelManager.fishToWin);
-            bool playerOK = _currentPlayer && _currentPlayer.alreadyAte;
+            bool playerOK = _currentPlayer && _currentPlayer.AlreadyAte;
             showOnEnter.SetActive(lmOK && playerOK);
         }
     }

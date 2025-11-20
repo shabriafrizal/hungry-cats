@@ -104,7 +104,7 @@ public class FoodSystems : MonoBehaviour
             // Mark player ate + size side effect + counters + events
             if (_currentPlayer)
             {
-                _currentPlayer.alreadyAte = true;           // <- important flag for BedSystems
+                _currentPlayer.SetAlreadyAte(true);           // <- important flag for BedSystems
                 ApplySideEffectToPlayer(_currentPlayer);
             }
 
