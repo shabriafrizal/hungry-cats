@@ -5006,6 +5006,7 @@ GameObject:
   - component: {fileID: 1361086157727418288}
   - component: {fileID: 4044200657769838641}
   - component: {fileID: 5833935897232086540}
+  - component: {fileID: 3314790490923628015}
   m_Layer: 0
   m_Name: Player
   m_TagString: Player
@@ -5132,30 +5133,6 @@ MonoBehaviour:
     m_Bits: 64
   groundedHoldDuration: 1
   allowDoubleJump: 0
-  smallPreset:
-    size: 0
-    scaleMultiplier: {x: 0.5, y: 0.5}
-    moveSpeedMultiplier: 1.15
-    accelerationMultiplier: 1.1
-    decelerationMultiplier: 1
-    jumpVelocityMultiplier: 0.9
-    fallGravityMultiplierMultiplier: 1.05
-  normalPreset:
-    size: 1
-    scaleMultiplier: {x: 1, y: 1}
-    moveSpeedMultiplier: 1
-    accelerationMultiplier: 1
-    decelerationMultiplier: 1
-    jumpVelocityMultiplier: 1
-    fallGravityMultiplierMultiplier: 1
-  bigPreset:
-    size: 2
-    scaleMultiplier: {x: 1.5, y: 1.5}
-    moveSpeedMultiplier: 0.85
-    accelerationMultiplier: 0.9
-    decelerationMultiplier: 1.05
-    jumpVelocityMultiplier: 1.2
-    fallGravityMultiplierMultiplier: 0.95
   animator: {fileID: 4044200657769838641}
   spriteRenderer: {fileID: 1926968244344086368}
   walkSpeedThreshold: 0.1
@@ -5253,6 +5230,27 @@ MonoBehaviour:
   landingSquashAmount: 0.3
   returnSpeed: 5
   maxStretch: 0.1
+--- !u!114 &3314790490923628015
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6693728879320119896}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ddf3df07cb0759540b12a4054900428a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  smallPreset:
+    name: Small
+    scaleMultiplier: {x: 0.75, y: 0.75}
+  normalPreset:
+    name: Normal
+    scaleMultiplier: {x: 1, y: 1}
+  bigPreset:
+    name: Big
+    scaleMultiplier: {x: 1.25, y: 1.25}
 --- !u!1 &7982661241420420367
 GameObject:
   m_ObjectHideFlags: 0

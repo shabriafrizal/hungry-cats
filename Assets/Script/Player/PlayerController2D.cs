@@ -47,65 +47,6 @@ public class PlayerController2D : MonoBehaviour
     [Tooltip("Optional: allow a single mid-air jump.")]
     [SerializeField] private bool allowDoubleJump = false;
 
-    // =========================
-    //        SCALE SYSTEM
-    // =========================
-    public enum PlayerSize { Small, Normal, Big }
-
-    [System.Serializable]
-    public struct SizePreset
-    {
-        public PlayerSize size;
-        public Vector2 scaleMultiplier;
-
-        [Header("Movement/Jump Multipliers (relative to ORIGINALS)")]
-        public float moveSpeedMultiplier;
-        public float accelerationMultiplier;
-        public float decelerationMultiplier;
-        public float jumpVelocityMultiplier;
-        public float fallGravityMultiplierMultiplier;
-    }
-
-    [Header("Scale Presets (Multipliers from ORIGINAL)")]
-    [SerializeField]
-    private SizePreset smallPreset = new SizePreset
-    {
-        size = PlayerSize.Small,
-        scaleMultiplier = new Vector2(0.5f, 0.5f),
-
-        moveSpeedMultiplier = 1.15f,
-        accelerationMultiplier = 1.1f,
-        decelerationMultiplier = 1.0f,
-        jumpVelocityMultiplier = 0.9f,
-        fallGravityMultiplierMultiplier = 1.05f
-    };
-
-    [SerializeField]
-    private SizePreset normalPreset = new SizePreset
-    {
-        size = PlayerSize.Normal,
-        scaleMultiplier = new Vector2(1f, 1f),
-
-        moveSpeedMultiplier = 1f,
-        accelerationMultiplier = 1f,
-        decelerationMultiplier = 1f,
-        jumpVelocityMultiplier = 1f,
-        fallGravityMultiplierMultiplier = 1f
-    };
-
-    [SerializeField]
-    private SizePreset bigPreset = new SizePreset
-    {
-        size = PlayerSize.Big,
-        scaleMultiplier = new Vector2(1.5f, 1.5f),
-
-        moveSpeedMultiplier = 0.85f,
-        accelerationMultiplier = 0.9f,
-        decelerationMultiplier = 1.05f,
-        jumpVelocityMultiplier = 1.2f,
-        fallGravityMultiplierMultiplier = 0.95f
-    };
-
     // ===== RUNTIME FIELDS =====
     // Cached components / baselines
     private Rigidbody2D rb;
@@ -236,54 +177,13 @@ public class PlayerController2D : MonoBehaviour
     [System.Serializable]
     private struct SizePresetMarker { }
 
-    public void ApplySize(SizePreset preset)
-    {
-        // 1) Transform scale
-        Vector3 finalScale = new Vector3(
-            originalScale2D.x * preset.scaleMultiplier.x,
-            originalScale2D.y * preset.scaleMultiplier.y,
-            transform.localScale.z
-        );
-        transform.localScale = finalScale;
-
-        // 2) Parameter adjustments (movement/jump)
-        moveSpeed = originalMoveSpeed * Mathf.Max(0.01f, preset.moveSpeedMultiplier);
-        acceleration = originalAcceleration * Mathf.Max(0.01f, preset.accelerationMultiplier);
-        deceleration = originalDeceleration * Mathf.Max(0.01f, preset.decelerationMultiplier);
-        jumpVelocity = originalJumpVelocity * Mathf.Max(0.01f, preset.jumpVelocityMultiplier);
-        fallGravityMultiplier = originalFallGravityMultiplier * Mathf.Max(0.01f, preset.fallGravityMultiplierMultiplier);
-    }
-
     public bool CanPlayerEat() => !alreadyAte;
-
-    public void ApplyScaleMultiplier(Vector2 scaleMultiplier)
-    {
-        ApplySize(new SizePreset
-        {
-            size = PlayerSize.Normal,
-            scaleMultiplier = scaleMultiplier,
-
-            moveSpeedMultiplier = 1f,
-            accelerationMultiplier = 1f,
-            decelerationMultiplier = 1f,
-            jumpVelocityMultiplier = 1f,
-            fallGravityMultiplierMultiplier = 1f
-        });
-    }
-
-    public void SetPlayerToSmall() => ApplySize(smallPreset);
-    public void SetPlayerToNormal() => ApplySize(normalPreset);
-    public void SetPlayerToBig() => ApplySize(bigPreset);
-
-    // SendMessage-friendly overloads (for FoodSystems)
-    public void SetPlayerToSmall(FoodSystems _) => SetPlayerToSmall();
-    public void SetPlayerToNormal(FoodSystems _) => SetPlayerToNormal();
-    public void SetPlayerToBig(FoodSystems _) => SetPlayerToBig();
 
     public Transform GroundCheck => groundCheck;
     public float MoveSpeed => moveSpeed;
     public bool AlreadyAte => alreadyAte;
     public void SetAlreadyAte(bool value) => alreadyAte = value;
+
 
     // ===== PRIVATE LOGIC =====
 

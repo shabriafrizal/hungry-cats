@@ -50,7 +50,8 @@ public class FoodSystems : MonoBehaviour
 
     // Cache for the current player in trigger (robust for child colliders)
     Collider2D _currentTriggerCol;
-    PlayerController2D _currentPlayer;
+    PlayerController2D _currentPlayerController;
+    PlayerSizeController2D _currentPlayerSizeController;
 
     void Awake()
     {
@@ -79,7 +80,7 @@ public class FoodSystems : MonoBehaviour
         {
 
             // Cegah makan jika player sudah pernah makan
-            if (_currentPlayer && !_currentPlayer.CanPlayerEat())
+            if (_currentPlayerController && !_currentPlayerController.CanPlayerEat())
             {
                 return;
             }
@@ -102,10 +103,10 @@ public class FoodSystems : MonoBehaviour
             if (showOnEnter) showOnEnter.SetActive(false);
 
             // Mark player ate + size side effect + counters + events
-            if (_currentPlayer)
+            if (_currentPlayerController)
             {
-                _currentPlayer.SetAlreadyAte(true);           // <- important flag for BedSystems
-                ApplySideEffectToPlayer(_currentPlayer);
+                _currentPlayerController.SetAlreadyAte(true);           // <- important flag for BedSystems
+                ApplySideEffectToPlayer(_currentPlayerSizeController);
             }
 
             if (levelManager != null)
@@ -115,7 +116,7 @@ public class FoodSystems : MonoBehaviour
             }
 
             onSwapped?.Invoke(this);
-            if (_currentPlayer) onSwapOther?.Invoke(_currentPlayer.gameObject);
+            if (_currentPlayerController) onSwapOther?.Invoke(_currentPlayerController.gameObject);
             else if (_currentTriggerCol) onSwapOther?.Invoke(_currentTriggerCol.gameObject);
         }
     }
@@ -130,7 +131,9 @@ public class FoodSystems : MonoBehaviour
 
         // Resolve player robustly (feet/body child colliders supported)
         GameObject root = other.attachedRigidbody ? other.attachedRigidbody.gameObject : other.gameObject;
-        _currentPlayer = root.GetComponentInParent<PlayerController2D>();
+        _currentPlayerController = root.GetComponentInParent<PlayerController2D>();
+        _currentPlayerSizeController = root.GetComponentInParent<PlayerSizeController2D>();
+
 
         if (showOnEnter && !_changed) showOnEnter.SetActive(true);
 
@@ -144,46 +147,47 @@ public class FoodSystems : MonoBehaviour
 
         // Only clear if the exiting collider belongs to the same player
         var exitingRB = other.attachedRigidbody;
-        var cachedRB = _currentPlayer ? _currentPlayer.GetComponent<Rigidbody2D>() : null;
+        var cachedRB = _currentPlayerController ? _currentPlayerController.GetComponent<Rigidbody2D>() : null;
 
         bool samePlayer =
             (exitingRB && cachedRB && exitingRB == cachedRB) ||
-            (!exitingRB && _currentPlayer && other.transform.IsChildOf(_currentPlayer.transform));
+            (!exitingRB && _currentPlayerController && other.transform.IsChildOf(_currentPlayerController.transform));
 
         if (samePlayer)
         {
             onExit?.Invoke(this);
-            onExitOther?.Invoke(_currentPlayer ? _currentPlayer.gameObject : other.gameObject);
+            onExitOther?.Invoke(_currentPlayerController ? _currentPlayerController.gameObject : other.gameObject);
 
             _playerInside = false;
             if (showOnEnter) showOnEnter.SetActive(false);
             _currentTriggerCol = null;
-            _currentPlayer = null;
+            _currentPlayerController = null;
+            _currentPlayerSizeController = null;
         }
     }
 
     // ---------- Helpers ----------
-    void ApplySideEffectToPlayer(PlayerController2D pc)
+    void ApplySideEffectToPlayer(PlayerSizeController2D psc)
     {
-        if (!pc) return;
+        if (!psc) return;
 
         switch (sideEffectPlayer)
         {
             case PlayerSideEffect.MakeSmall:
-                pc.SetPlayerToSmall();
+                psc.SetSmall();
                 break;
 
             case PlayerSideEffect.MakeBig:
-                pc.SetPlayerToBig();
+                psc.SetBig();
                 break;
 
             case PlayerSideEffect.Toggle:
                 // Simple toggle heuristic:
                 // If roughly <= normal scale -> go BIG, else go SMALL.
                 // (Works fine with your default 1x, 0.5x, 1.5x presets.)
-                float sx = pc.transform.localScale.x;
-                if (sx <= 1.01f) pc.SetPlayerToBig();
-                else pc.SetPlayerToSmall();
+                float sx = psc.transform.localScale.x;
+                if (sx <= 1.01f) psc.SetBig();
+                else psc.SetSmall();
                 break;
 
             case PlayerSideEffect.None:
